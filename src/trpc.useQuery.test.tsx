@@ -5,6 +5,7 @@ import {z} from "zod";
 import {createTRPCReact, httpBatchLink} from "@trpc/react-query";
 import {QueryCache, QueryClient, QueryClientProvider, UseQueryResult} from "@tanstack/react-query";
 import {createHTTPServer} from "@trpc/server/dist/adapters/standalone";
+import {Server} from "http";
 
 const t = initTRPC.create();
 const router = t.router;
@@ -21,37 +22,51 @@ const appRouter = router({
 const trpc = createTRPCReact<typeof appRouter>();
 
 describe("tRPC", () => {
-  const httpServer = createHTTPServer({
-    router: appRouter,
-    createContext: ({req, res}) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      return ({req, res});
-    },
-    batching: {
-      enabled: true,
-    },
-  });
-  const {port: httpPort} = httpServer.listen(0);
-  const httpUrl = `http://localhost:${httpPort}`;
-  console.log(httpUrl);
+  let _httpServer: Server;
+  let _httpUrl: string;
+  let _queryCache: QueryCache;
 
-  const queryCache = new QueryCache();
-  const queryClient = new QueryClient({queryCache});
-  const trpcClient = trpc.createClient({
-    links: [
-      httpBatchLink({
-        url: httpUrl,
-      }),
-    ],
+  beforeAll(() => {
+    const httpServer = createHTTPServer({
+      router: appRouter,
+      createContext: ({req, res}) => {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        return ({req, res});
+      },
+      batching: {
+        enabled: true,
+      },
+    });
+    const {port: httpPort} = httpServer.listen(0);
+    _httpUrl = `http://localhost:${httpPort}`;
+    console.log(_httpUrl);
+
+    _queryCache = new QueryCache();
+    _httpServer = httpServer.server;
   });
 
-  const Provider = ({ui}: { ui: React.ReactElement }) => (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        {ui}
-      </QueryClientProvider>
-    </trpc.Provider>
-  );
+  afterAll(() => {
+    _httpServer.close();
+  });
+
+
+  const Provider = ({ui}: { ui: React.ReactElement }) => {
+    const queryClient = new QueryClient({queryCache: _queryCache});
+    const trpcClient = trpc.createClient({
+      links: [
+        httpBatchLink({
+          url: _httpUrl,
+        }),
+      ],
+    });
+    return (
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          {ui}
+        </QueryClientProvider>
+      </trpc.Provider>
+    )
+  };
 
   test("queryKey, queryHash の確認", async () => {
     const states: UseQueryResult<string>[] = [];
@@ -82,7 +97,7 @@ describe("tRPC", () => {
     await waitFor(() => expect(states.length).toBe(6));
 
     // QueryKey
-    const queryKeys = queryCache.getAll().map(v => v.queryKey);
+    const queryKeys = _queryCache.getAll().map(v => v.queryKey);
     console.log(queryKeys);
     expect(queryKeys)
       .toMatchObject([
@@ -92,7 +107,7 @@ describe("tRPC", () => {
       ]);
 
     // QueryHash
-    const queryHash = queryCache.getAll().map(v => v.queryHash);
+    const queryHash = _queryCache.getAll().map(v => v.queryHash);
     console.log(queryHash);
     expect(queryHash)
       .toMatchObject([

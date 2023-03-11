@@ -18,11 +18,19 @@ $ npm run test
 
 ## 結果
 ### `queryKey`, `queryHash` の生成について
-1. **react-query**のデフォルトの`queryHash`の計算方法は`JSON.stringify`をベースにしたものだった。
-   https://github.com/TanStack/query/blob/22fbdaf6962f14e71ea1b956949bf998de02f865/packages/query-core/src/utils.ts#L265-L280
+#### `queryKey`
+1. **react-query**の`queryKey`は`'["key",{"k":"v"}]'`のように生成される。
 
-2. **tRPC**は`queryKey`を`[["key"], {input: {k: "v"}, type: "query"}]`のように生成する。
-   `queryHash`の計算方法は**react-query**と同一だった。
+2. **tRPC**は`queryKey`を`[["path"], {input: {k: "v"}, type: "query"}]`のように生成する。
+
+https://github.com/trpc/trpc/blob/19c7c27d8ed548b2bc7ab5eb921fd179143aa230/packages/react-query/src/internals/getArrayQueryKey.ts#L22-L45
+
+#### `queryHash`
+**react-query**のデフォルトの`queryHash`の計算方法は`JSON.stringify`をベースにしたものだった。
+また、tRPCもこの実装を使用していた。
+
+https://github.com/TanStack/query/blob/22fbdaf6962f14e71ea1b956949bf998de02f865/packages/query-core/src/utils.ts#L265-L280
+
 
 ### tRPCの`queryKeyHashFn`の引数の型が間違っている問題
 TypeScript が提示する型と、実際に`queryKeyHashFn`の引数の型が一致しない。
