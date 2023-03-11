@@ -1,46 +1,44 @@
-# Getting Started with Create React App
+# useQuery の動作の確認
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## 問題点
 
-## Available Scripts
+現在のプロジェクトで`tRPC`を使用している。
+そのプロジェクトで`useQuery`を用いてキャッシュをさせたいが、`tRPC`の引数を考慮したキャッシュがされないような動作があった。
 
-In the project directory, you can run:
+また、そのワークアラウンドのため`queryKeyHashFn`を使用して実装を行ったが、引数として与えられる型が正しくなかった。
 
-### `npm start`
+## 動作確認方法
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```
+$ npm run test
+```
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+- **react-query**の動作確認 ([.src/react.useQuery.test.tsx](`.src/react.useQuery.test.tsx`))
+- **tRPC**の動作確認 ([.src/react.useQuery.test.tsx](`.src/trpc.useQuery.test.tsx`))
 
-### `npm test`
+## 結果
+### `queryKey`, `queryHash` の生成について
+1. **react-query**のデフォルトの`queryHash`の計算方法は`JSON.stringify`をベースにしたものだった。
+   https://github.com/TanStack/query/blob/22fbdaf6962f14e71ea1b956949bf998de02f865/packages/query-core/src/utils.ts#L265-L280
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+2. **tRPC**は`queryKey`を`[["key"], {input: {k: "v"}, type: "query"}]`のように生成する。
+   `queryHash`の計算方法は**react-query**と同一だった。
 
-### `npm run build`
+### tRPCの`queryKeyHashFn`の引数の型が間違っている問題
+TypeScript が提示する型と、実際に`queryKeyHashFn`の引数の型が一致しない。
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+- **tRPC**の動作確認 ([.src/react.useQuery.test.tsx](`.src/trpc.useQuery.test.tsx`))
+```javascript
+queryKeyHashFn: (key) => {
+   expect(key.length).toBe(2);
+   expect(key[0]).toMatchObject(["zod"]);
+   
+   // FIXME TypeScript が提示する型と実際のオブジェクトが一致していない
+   expect(key[1]).toMatchObject({input: {k: "v"}, type: "query"});
+   // エラーは出ないが、型が間違っている
+   console.log(`queryKeyHashFn: key[1].k == ${key[1].k}`);
+   expect(key[1]).toMatchObject({k: "v"});
+   
+   return "";
+}
+```
